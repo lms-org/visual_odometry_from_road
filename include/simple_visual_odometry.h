@@ -5,6 +5,7 @@
 #define USE_OPENCV
 #include <lms/imaging/image.h>
 #include <kalman_filter/ctrv_vxy.h>
+#include <lms/math/pose.h>
 
 /**
  * @brief LMS module simple_visual_odometry
@@ -12,6 +13,7 @@
 class SimpleVisualOdometry : public lms::Module {
     lms::ReadDataChannel<lms::imaging::Image> image;
     lms::WriteDataChannel<lms::imaging::Image> debugImage,trajectoryImage;
+    lms::WriteDataChannel<lms::math::Pose2DHistory> poseHistory;
     lms::imaging::Image oldImage;
     std::vector<cv::Point2f> oldImagePoints;
 
