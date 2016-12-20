@@ -10,7 +10,7 @@ set(HEADERS
 
 include_directories(include)
 
-find_package( OpenCV REQUIRED )
+#find_package( OpenCV REQUIRED )
 
 add_library(simple_visual_odometry MODULE ${SOURCES} ${HEADERS})
-target_link_libraries(simple_visual_odometry PRIVATE lmscore ${OpenCV_LIBS} lms_imaging)
+target_link_libraries(simple_visual_odometry PRIVATE lmscore ${CONAN_LIBS} lms_imaging)
