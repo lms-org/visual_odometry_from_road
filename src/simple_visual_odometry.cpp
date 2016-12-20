@@ -154,8 +154,8 @@ bool SimpleVisualOdometry::cycle() {
         cv::Mat res;
         cv::solve(leftSide,rightSide,res,cv::DECOMP_SVD); //TODO we could use pseudo-inverse
         //calculate the rotation/translation matrix
-        float dx = res.at<double>(2);
-        float dy = res.at<double>(3);
+        float dx = -res.at<double>(2);
+        float dy = -res.at<double>(3);
         float angle = std::atan2(res.at<double>(1),res.at<double>(0));
 
         //update the ukf
@@ -180,8 +180,6 @@ bool SimpleVisualOdometry::cycle() {
             cv::Mat newPos = transRotOld*currentPosition;
             traGraphics.setColor(lms::imaging::red);
             traGraphics.drawPixel(newPos.at<double>(0)*512/30+256,newPos.at<double>(1)*512/30+256);
-            traGraphics.setColor(lms::imaging::blue);
-            traGraphics.drawPixel(ukf.lastState.x()*512/30+256,ukf.lastState.y()*512/30+256);
         }
     }else{
         //TODO we lost track
@@ -192,6 +190,9 @@ bool SimpleVisualOdometry::cycle() {
     oldImage = *image;
     oldImagePoints = newImagePoints;
     if(drawDebug){
+        lms::imaging::BGRAImageGraphics traGraphics(*trajectoryImage);
+        traGraphics.setColor(lms::imaging::blue);
+        traGraphics.drawPixel(poseHistory->currentPose().x*512/30+256,poseHistory->currentPose().y*512/30+256);
         //cv::namedWindow( "Camera", WINDOW_AUTOSIZE );
         cv::namedWindow( "Display window", cv::WINDOW_AUTOSIZE );// Create a window for display.
         cv::imshow( "Display window", trajectoryImage->convertToOpenCVMat() );                   // Show our image inside it.
