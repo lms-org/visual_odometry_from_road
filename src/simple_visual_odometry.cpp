@@ -140,6 +140,7 @@ bool SimpleVisualOdometry::cycle() {
         rightSide.create(2*world_old.size(),1, CV_64F);
         leftSide.create(2*world_old.size(),4,CV_64F);
         for(std::size_t i = 0; i < 2*world_old.size(); i+=2){
+            //we have the new points and would like to know how to get to the old ones as they moved closer to us
             leftSide.at<double>(i,0) = world_new[i/2].x;
             leftSide.at<double>(i,1) = -world_new[i/2].y;
             leftSide.at<double>(i,2) = 1;
@@ -182,7 +183,7 @@ bool SimpleVisualOdometry::cycle() {
             //currentPosition = transRotNew*currentPosition;
             cv::Mat newPos = transRotOld*currentPosition;
             traGraphics.setColor(lms::imaging::red);
-            traGraphics.drawPixel(newPos.at<double>(0)*512/30+256,newPos.at<double>(1)*512/30+256);
+            traGraphics.drawPixel(newPos.at<double>(0)*512/30+256,-newPos.at<double>(1)*512/30+256);
         }
     }else{
         //TODO we lost track
@@ -195,7 +196,7 @@ bool SimpleVisualOdometry::cycle() {
     if(drawDebug){
         lms::imaging::BGRAImageGraphics traGraphics(*trajectoryImage);
         traGraphics.setColor(lms::imaging::blue);
-        traGraphics.drawPixel(poseHistory->currentPose().x*512/30+256,poseHistory->currentPose().y*512/30+256);
+        traGraphics.drawPixel(poseHistory->currentPose().x*512/30+256,-poseHistory->currentPose().y*512/30+256);
         //cv::namedWindow( "Camera", WINDOW_AUTOSIZE );
         cv::namedWindow( "Display window", cv::WINDOW_AUTOSIZE );// Create a window for display.
         cv::imshow( "Display window", trajectoryImage->convertToOpenCVMat() );                   // Show our image inside it.
