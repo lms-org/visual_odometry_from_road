@@ -33,6 +33,7 @@ bool SimpleVisualOdometry::deinitialize() {
 }
 
 bool SimpleVisualOdometry::cycle() {
+    //TODO get find-rectangle
     const float dt = 0.1;
     ukf.predict(dt);
 
@@ -139,23 +140,25 @@ bool SimpleVisualOdometry::cycle() {
         rightSide.create(2*world_old.size(),1, CV_64F);
         leftSide.create(2*world_old.size(),4,CV_64F);
         for(std::size_t i = 0; i < 2*world_old.size(); i+=2){
-            leftSide.at<double>(i,0) = world_old[i/2].x;
-            leftSide.at<double>(i,1) = -world_old[i/2].y;
+            leftSide.at<double>(i,0) = world_new[i/2].x;
+            leftSide.at<double>(i,1) = -world_new[i/2].y;
             leftSide.at<double>(i,2) = 1;
             leftSide.at<double>(i,3) = 0;
-            leftSide.at<double>(i+1,0) = world_old[i/2].y;
-            leftSide.at<double>(i+1,1) = world_old[i/2].x;
+            leftSide.at<double>(i+1,0) = world_new[i/2].y;
+            leftSide.at<double>(i+1,1) = world_new[i/2].x;
             leftSide.at<double>(i+1,2) = 0;
             leftSide.at<double>(i+1,3) = 1;
-            rightSide.at<double>(i,0) = world_new[i/2].x;
-            rightSide.at<double>(i+1,0) = world_new[i/2].y;
+            rightSide.at<double>(i,0) = world_old[i/2].x;
+            rightSide.at<double>(i+1,0) = world_old[i/2].y;
         }
         //solve it
         cv::Mat res;
         cv::solve(leftSide,rightSide,res,cv::DECOMP_SVD); //TODO we could use pseudo-inverse
         //calculate the rotation/translation matrix
-        float dx = -res.at<double>(2);
-        float dy = -res.at<double>(3);
+        //TODO as we
+
+        float dx = res.at<double>(2);
+        float dy = res.at<double>(3);
         float angle = std::atan2(res.at<double>(1),res.at<double>(0));
 
         //update the ukf
@@ -165,8 +168,8 @@ bool SimpleVisualOdometry::cycle() {
         lms::imaging::BGRAImageGraphics traGraphics(*trajectoryImage);
         if(drawDebug){
             transRotNew.at<double>(0,0) = std::cos(angle);
-            transRotNew.at<double>(0,1) = -std::sin(angle);
-            transRotNew.at<double>(1,0) = std::sin(angle);
+            transRotNew.at<double>(0,1) = std::sin(angle);
+            transRotNew.at<double>(1,0) = -std::sin(angle);
             transRotNew.at<double>(1,1) = std::cos(angle);
             transRotNew.at<double>(0,2) = dx;
             transRotNew.at<double>(1,2) = dy;
