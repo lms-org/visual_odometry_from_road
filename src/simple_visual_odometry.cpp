@@ -174,7 +174,6 @@ bool SimpleVisualOdometry::cycle() {
             transRotNew.at<double>(2,1) = 0;
             transRotNew.at<double>(2,2) = 1;
             //translate the current position
-            //TODO Hier geht was schief
             transRotOld = transRotOld*transRotNew;
             //currentPosition = transRotNew*currentPosition;
             cv::Mat newPos = transRotOld*currentPosition;
@@ -182,7 +181,7 @@ bool SimpleVisualOdometry::cycle() {
             traGraphics.drawPixel(newPos.at<double>(0)*512/30+256,-newPos.at<double>(1)*512/30+256);
         }
     }else{
-        //TODO we lost track
+        //we lost track, no update for the ukf
     }
     //add new pose
     poseHistory->addPose(ukf.lastState.x(),ukf.lastState.y(),ukf.lastState.phi(),lms::Time::now().toFloat<std::milli, double>());
