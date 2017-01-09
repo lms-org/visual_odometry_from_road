@@ -151,14 +151,12 @@ bool SimpleVisualOdometry::cycle() {
         //solve it
         cv::Mat res;
         cv::solve(leftSide,rightSide,res,cv::DECOMP_SVD); //TODO we could use pseudo-inverse
-        //calculate the rotation/translation matrix
-        //TODO as we
-
         float dx = res.at<double>(2);
         float dy = res.at<double>(3);
         float angle = std::atan2(res.at<double>(1),res.at<double>(0));
 
         //update the ukf
+        logger.debug("updating ukf")<<dx/dt<<" "<<dy/dt<<" "<<angle/dt;
         ukf.setMeasurementVec(dx/dt,dy/dt,angle/dt);
         ukf.update();
 
