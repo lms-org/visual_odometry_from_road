@@ -114,33 +114,20 @@ bool SimpleVisualOdometry::cycle() {
         }
     }
     if(newImagePoints.size() > 1){
-        //as we detect the points inside a subimage we have to get the actual position:
-        std::vector<cv::Point2f> tmpOldImagePoints,tmpNewImagePoints;
-        for(std::size_t i = 0; i < oldImagePoints.size(); i++){
-            cv::Point2f newP = oldImagePoints[i];
-            newP.x = newP.x + rect.x;
-            newP.y = newP.y + rect.y;
-            tmpOldImagePoints.push_back(newP);
-            newP = newImagePoints[i];
-            newP.x = newP.x + rect.x;
-            newP.y = newP.y + rect.y;
-            tmpNewImagePoints.push_back(newP);
-
-        }
         if(drawDebug){
             lms::imaging::BGRAImageGraphics graphics(*debugImage);
             graphics.setColor(lms::imaging::blue);
             graphics.drawRect(rect.x,rect.y,rect.width,rect.height);
             graphics.setColor(lms::imaging::red);
-            for(cv::Point2f p:tmpNewImagePoints){
+            for(cv::Point2f p:newImagePoints){
                 graphics.drawCross(p.x,p.y);
             }
         }
 
         //transform points to 2D-Coordinates
         std::vector<cv::Point2f> world_old,world_new;
-        cv::perspectiveTransform(tmpOldImagePoints,world_old,cam2world);
-        cv::perspectiveTransform(tmpNewImagePoints,world_new,cam2world);
+        cv::perspectiveTransform(oldImagePoints,world_old,cam2world);
+        cv::perspectiveTransform(newImagePoints,world_new,cam2world);
 
         //######################################################
         //from http://math.stackexchange.com/questions/77462/finding-transformation-matrix-between-two-2d-coordinate-frames-pixel-plane-to-w
@@ -178,8 +165,8 @@ bool SimpleVisualOdometry::cycle() {
         lms::imaging::BGRAImageGraphics traGraphics(*trajectoryImage);
         if(drawDebug){
             transRotNew.at<double>(0,0) = std::cos(angle);
-            transRotNew.at<double>(0,1) = std::sin(angle);
-            transRotNew.at<double>(1,0) = -std::sin(angle);
+            transRotNew.at<double>(0,1) = -std::sin(angle);
+            transRotNew.at<double>(1,0) = std::sin(angle);
             transRotNew.at<double>(1,1) = std::cos(angle);
             transRotNew.at<double>(0,2) = dx;
             transRotNew.at<double>(1,2) = dy;
