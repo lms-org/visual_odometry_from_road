@@ -26,16 +26,13 @@ class SimpleVisualOdometry : public lms::Module {
     std::vector<uchar> status;
     kalman_filters::ctrv_vxy::MassModelUKF ukf;
 
-    //test
-    cv::Mat t_f;// = t_f + scale*(R_f*t);
-    cv::Mat R_f;// = R*R_f;
-
 
 public:
     bool initialize() override;
     bool deinitialize() override;
     bool cycle() override;
     void configsChanged();
+    void detectFeaturePointsInOldImage(const cv::Rect rect, const int fastThreshold);
 };
 
 #endif // SIMPLE_VISUAL_ODOMETRY_H

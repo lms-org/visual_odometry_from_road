@@ -20,10 +20,6 @@ bool SimpleVisualOdometry::initialize() {
     transRotNew.create(3,3,CV_64F);
     transRotOld = cv::Mat::eye(3,3,CV_64F);
 
-    //test
-    t_f.create(3,1,CV_64F);
-    R_f.create(3,3,CV_64F);
-
     ukf.init();
     return true;
 }
@@ -33,10 +29,14 @@ bool SimpleVisualOdometry::deinitialize() {
 }
 
 bool SimpleVisualOdometry::cycle() {
-    //TODO get find-rectangle
+    //use the predict of the ukf to calculate new xy position if even if we haven't found feature points
     const float dt = 0.1;
     ukf.predict(dt);
 
+
+    //we try to find feature points in the old Image and try to redetect them in the new image
+    //if we haven't found enough feature points in the new image we try to find more in the old image, therefore we store the old image
+    //we crop the image to only find points on the road
     int fastThreshold = config().get<int>("fastThreshold",20);
     bool drawDebug = config().get<bool>("drawDebug",false);
     //catch first round
@@ -61,20 +61,25 @@ bool SimpleVisualOdometry::cycle() {
     }
     cv::Rect rect(xmin,ymin,xmax-xmin,ymax-ymin);
 
-    cv::Mat oldIm = oldImage.convertToOpenCVMat()(rect);
+    cv::Mat oldImFull = oldImage.convertToOpenCVMat();
     int minFeatureCount = config().get<int>("minFeatureCount",1);
     bool alreadySearched = false;
-    if(oldImagePoints.size() <minFeatureCount){
+    if((int)oldImagePoints.size() <minFeatureCount){
         alreadySearched = true;
+        /*
         oldImagePoints.clear();
         featureDetection(oldIm, oldImagePoints,fastThreshold); //detect points
+        //TODO transform found points coord-sys of the full image
+        */
+        detectFeaturePointsInOldImage(rect,fastThreshold);
         if(oldImagePoints.size() == 0){
             oldImage = *image;
             logger.error("No features detected!");
             return false;
         }
     }
-    cv::Mat newIm = image->convertToOpenCVMat()(rect);
+    //no need to clip the image as the oldPoints are in the frame of the full image!
+    cv::Mat newIm = image->convertToOpenCVMat();
     if(drawDebug){
         debugImage->resize(image->width(),image->height(),lms::imaging::Format::BGRA);
         debugImage->fill(0);
@@ -82,22 +87,26 @@ bool SimpleVisualOdometry::cycle() {
         graphics.setColor(lms::imaging::blue);
         graphics.drawRect(rect.x,rect.y,rect.width,rect.height);
     }
-
     logger.debug("oldPoints")<<oldImagePoints.size();
-    featureTracking(oldIm,newIm,oldImagePoints,newImagePoints, status); //track those features to the new image
-    if(newImagePoints.size() <minFeatureCount){
+    //track the old feature points
+    featureTracking(oldImFull,newIm,oldImagePoints,newImagePoints, status); //track those features to the new image
+    if((int)newImagePoints.size() <minFeatureCount){
         logger.warn("not enough points tracked!")<<newImagePoints.size();
         if(!alreadySearched){
+            /*
             newImagePoints.clear();
             oldImagePoints.clear();
             status.clear();
             featureDetection(oldIm, oldImagePoints,fastThreshold); //detect points
+            */
+            detectFeaturePointsInOldImage(rect,fastThreshold);
+            //TODO transform found points coord-sys of the full image
         }
         logger.debug("detected new features")<<oldImagePoints.size();
         if(oldImagePoints.size() == 0){
             logger.error("No features detected!");
         }else{
-            featureTracking(oldIm,newIm,oldImagePoints,newImagePoints, status); //track those features to the new image
+            featureTracking(oldImFull,newIm,oldImagePoints,newImagePoints, status); //track those features to the new image
             logger.debug("tracking new features")<<newImagePoints.size();
             if(newImagePoints.size() <= 1){
                 logger.error("Not enough features could be tracked!")<<newImagePoints.size();
@@ -220,6 +229,20 @@ void SimpleVisualOdometry::configsChanged(){
             i++;
         }
     }
+}
+
+void SimpleVisualOdometry::detectFeaturePointsInOldImage(cv::Rect rect, const int fastThreshold){
+    newImagePoints.clear();
+    oldImagePoints.clear();
+    status.clear();
+    cv::Mat oldImClipped = oldImage.convertToOpenCVMat()(rect);
+    featureDetection(oldImClipped, oldImagePoints,fastThreshold); //detect points
+    for(cv::Point2f &v:oldImagePoints){
+        v.x += rect.x;
+        v.y += rect.y;
+    }
+    //TODO transform found points coord-sys of the full image
+
 }
 
 

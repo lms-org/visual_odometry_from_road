@@ -45,11 +45,15 @@ THE SOFTWARE.
 
 using namespace cv;
 using namespace std;
-
+/**
+ * @brief featureTracking this function automatically gets rid of points for which tracking fails
+ * @param img_1
+ * @param img_2
+ * @param points1
+ * @param points2
+ * @param status
+ */
 void featureTracking(Mat img_1, Mat img_2, vector<Point2f>& points1, vector<Point2f>& points2, vector<uchar>& status)	{ 
-
-//this function automatically gets rid of points for which tracking fails
-
   vector<float> err;					
   Size winSize=Size(21,21);
   TermCriteria termcrit=TermCriteria(TermCriteria::COUNT+TermCriteria::EPS, 30, 0.01);
@@ -58,7 +62,7 @@ void featureTracking(Mat img_1, Mat img_2, vector<Point2f>& points1, vector<Poin
 
   //getting rid of points for which the KLT tracking failed or those who have gone outside the frame
   int indexCorrection = 0;
-  for( int i=0; i<status.size(); i++)
+  for(std::size_t i=0; i<status.size(); i++)
      {  Point2f pt = points2.at(i- indexCorrection);
      	if ((status.at(i) == 0)||(pt.x<0)||(pt.y<0))	{
      		  if((pt.x<0)||(pt.y<0))	{
@@ -68,13 +72,16 @@ void featureTracking(Mat img_1, Mat img_2, vector<Point2f>& points1, vector<Poin
      		  points2.erase (points2.begin() + (i - indexCorrection));
      		  indexCorrection++;
      	}
-
      }
-
 }
 
-
-void featureDetection(Mat img_1, vector<Point2f>& points1,int fast_threshold)	{   //uses FAST as of now, modify parameters as necessary
+/**
+ * @brief featureDetection uses FAST to detect feature points
+ * @param img_1
+ * @param points1
+ * @param fast_threshold
+ */
+void featureDetection(Mat img_1, vector<Point2f>& points1,int fast_threshold){
   vector<KeyPoint> keypoints_1;
   bool nonmaxSuppression = true;
   FAST(img_1, keypoints_1, fast_threshold, nonmaxSuppression);
