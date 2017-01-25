@@ -33,6 +33,8 @@ public:
     bool cycle() override;
     void configsChanged();
     void detectFeaturePointsInOldImage(const cv::Rect rect, const int fastThreshold);
+    void checkNewFeaturePoints(const cv::Rect rect);
+    bool validateMeasurement(const float vx,const float vy,const float dPhi);
 };
 
 #endif // SIMPLE_VISUAL_ODOMETRY_H

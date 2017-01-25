@@ -3,6 +3,7 @@
 #include <opencv/cv.h>
 #include "vo_features.h"
 #include <lms/imaging/graphics.h>
+#include <lms/exception.h>
 
 bool SimpleVisualOdometry::initialize() {
     image = readChannel<lms::imaging::Image>("IMAGE");
@@ -90,23 +91,20 @@ bool SimpleVisualOdometry::cycle() {
     logger.debug("oldPoints")<<oldImagePoints.size();
     //track the old feature points
     featureTracking(oldImFull,newIm,oldImagePoints,newImagePoints, status); //track those features to the new image
+    checkNewFeaturePoints(rect);
     if((int)newImagePoints.size() <minFeatureCount){
         logger.warn("not enough points tracked!")<<newImagePoints.size();
         if(!alreadySearched){
-            /*
-            newImagePoints.clear();
-            oldImagePoints.clear();
-            status.clear();
-            featureDetection(oldIm, oldImagePoints,fastThreshold); //detect points
-            */
             detectFeaturePointsInOldImage(rect,fastThreshold);
-            //TODO transform found points coord-sys of the full image
+        }else{
+            logger.warn("already searched, found not enough points");
         }
         logger.debug("detected new features")<<oldImagePoints.size();
         if(oldImagePoints.size() == 0){
             logger.error("No features detected!");
         }else{
             featureTracking(oldImFull,newIm,oldImagePoints,newImagePoints, status); //track those features to the new image
+            checkNewFeaturePoints(rect);
             logger.debug("tracking new features")<<newImagePoints.size();
             if(newImagePoints.size() <= 1){
                 logger.error("Not enough features could be tracked!")<<newImagePoints.size();
@@ -155,28 +153,33 @@ bool SimpleVisualOdometry::cycle() {
         float dy = res.at<double>(3);
         float angle = std::atan2(res.at<double>(1),res.at<double>(0));
 
-        //update the ukf
-        logger.debug("updating ukf")<<dx/dt<<" "<<dy/dt<<" "<<angle/dt;
-        ukf.setMeasurementVec(dx/dt,dy/dt,angle/dt);
-        ukf.update();
+        if(validateMeasurement(dx/dt,dy/dt,angle/dt)){
+            //update the ukf
+            logger.debug("updating ukf")<<dx/dt<<" "<<dy/dt<<" "<<angle/dt;
 
-        lms::imaging::BGRAImageGraphics traGraphics(*trajectoryImage);
-        if(drawDebug){
-            transRotNew.at<double>(0,0) = std::cos(angle);
-            transRotNew.at<double>(0,1) = -std::sin(angle);
-            transRotNew.at<double>(1,0) = std::sin(angle);
-            transRotNew.at<double>(1,1) = std::cos(angle);
-            transRotNew.at<double>(0,2) = dx;
-            transRotNew.at<double>(1,2) = dy;
-            transRotNew.at<double>(2,0) = 0;
-            transRotNew.at<double>(2,1) = 0;
-            transRotNew.at<double>(2,2) = 1;
-            //translate the current position
-            transRotOld = transRotOld*transRotNew;
-            //currentPosition = transRotNew*currentPosition;
-            cv::Mat newPos = transRotOld*currentPosition;
-            traGraphics.setColor(lms::imaging::red);
-            traGraphics.drawPixel(newPos.at<double>(0)*512/30+256,-newPos.at<double>(1)*512/30+256);
+            ukf.setMeasurementVec(dx/dt,dy/dt,angle/dt);
+            ukf.update();
+
+            lms::imaging::BGRAImageGraphics traGraphics(*trajectoryImage);
+            if(drawDebug){
+                transRotNew.at<double>(0,0) = std::cos(angle);
+                transRotNew.at<double>(0,1) = -std::sin(angle);
+                transRotNew.at<double>(1,0) = std::sin(angle);
+                transRotNew.at<double>(1,1) = std::cos(angle);
+                transRotNew.at<double>(0,2) = dx;
+                transRotNew.at<double>(1,2) = dy;
+                transRotNew.at<double>(2,0) = 0;
+                transRotNew.at<double>(2,1) = 0;
+                transRotNew.at<double>(2,2) = 1;
+                //translate the current position
+                transRotOld = transRotOld*transRotNew;
+                //currentPosition = transRotNew*currentPosition;
+                cv::Mat newPos = transRotOld*currentPosition;
+                traGraphics.setColor(lms::imaging::red);
+                traGraphics.drawPixel(newPos.at<double>(0)*512/30+256,-newPos.at<double>(1)*512/30+256);
+            }
+        }else{
+            logger.warn("not updating ukf, invalid values")<<dx/dt<<" "<<dy/dt<<" "<<angle/dt;
         }
     }else{
         //we lost track, no update for the ukf
@@ -226,6 +229,41 @@ void SimpleVisualOdometry::detectFeaturePointsInOldImage(cv::Rect rect, const in
         v.y += rect.y;
     }
     //TODO transform found points coord-sys of the full image
+
+}
+
+void SimpleVisualOdometry::checkNewFeaturePoints(const cv::Rect rect){
+    if(newImagePoints.size() != oldImagePoints.size()){
+        throw lms::LmsException("newImagePoints size does not match oldImagePoints size");
+    }
+    for(int i = 0; i < (int)newImagePoints.size();){
+        if(rect.contains(newImagePoints[i])){
+            i++;
+        }else{
+            newImagePoints.erase(newImagePoints.begin()+i);
+            oldImagePoints.erase(oldImagePoints.begin()+i);
+
+        }
+    }
+}
+
+
+bool SimpleVisualOdometry::validateMeasurement(const float vx, const float vy, const float dPhi){
+    float vxMax = config().get<float>("vxMax",5);
+    float vyMax = config().get<float>("vyMax",5);
+    float vxMin = config().get<float>("vxMin",-0.1);
+    float vyMin = config().get<float>("vyMin",-0.1);
+    float omegaMax = config().get<float>("omegaMax",0.5);
+    if(vx > vxMax || vx < vxMin){
+        return false;
+    }
+    if(vy > vyMax || vy < vyMin){
+        return false;
+    }
+    if(std::fabs(dPhi) > omegaMax){
+        return false;
+    }
+    return true;
 
 }
 
