@@ -30,175 +30,181 @@ bool SimpleVisualOdometry::deinitialize() {
 }
 
 bool SimpleVisualOdometry::cycle() {
-    //use the predict of the ukf to calculate new xy position if even if we haven't found feature points
-    const float dt = 0.1;
-    ukf.predict(dt);
+    try{
+        //use the predict of the ukf to calculate new xy position if even if we haven't found feature points
+        const float dt = 0.1;
+        ukf.predict(dt);
 
 
-    //we try to find feature points in the old Image and try to redetect them in the new image
-    //if we haven't found enough feature points in the new image we try to find more in the old image, therefore we store the old image
-    //we crop the image to only find points on the road
-    int fastThreshold = config().get<int>("fastThreshold",20);
-    bool drawDebug = config().get<bool>("drawDebug",false);
-    //catch first round
-    if(oldImage.width()==0 || oldImage.height() == 0){
-        //first round
-        oldImage = *image;
-        return true;
-    }
-    //clear tmp objects
-    newImagePoints.clear();
-    status.clear();
-    //get region of interest
-    int xmin = 0;
-    int xmax = image->width();
-    int ymin = 0;
-    int ymax = image->height();
-    if(config().hasKey("xmin")){
-        xmin = config().get<int>("xmin");
-        xmax = config().get<int>("xmax");
-        ymin = config().get<int>("ymin");
-        ymax = config().get<int>("ymax");
-    }
-    cv::Rect rect(xmin,ymin,xmax-xmin,ymax-ymin);
-
-    cv::Mat oldImFull = oldImage.convertToOpenCVMat();
-    int minFeatureCount = config().get<int>("minFeatureCount",1);
-    bool alreadySearched = false;
-    if((int)oldImagePoints.size() <minFeatureCount){
-        alreadySearched = true;
-        /*
-        oldImagePoints.clear();
-        featureDetection(oldIm, oldImagePoints,fastThreshold); //detect points
-        //TODO transform found points coord-sys of the full image
-        */
-        detectFeaturePointsInOldImage(rect,fastThreshold);
-        if(oldImagePoints.size() == 0){
+        //we try to find feature points in the old Image and try to redetect them in the new image
+        //if we haven't found enough feature points in the new image we try to find more in the old image, therefore we store the old image
+        //we crop the image to only find points on the road
+        int fastThreshold = config().get<int>("fastThreshold",20);
+        bool drawDebug = config().get<bool>("drawDebug",false);
+        //catch first round
+        if(oldImage.width()==0 || oldImage.height() == 0){
+            //first round
             oldImage = *image;
-            logger.error("No features detected!");
-            return false;
+            return true;
         }
-    }
-    //no need to clip the image as the oldPoints are in the frame of the full image!
-    cv::Mat newIm = image->convertToOpenCVMat();
-    if(drawDebug){
-        debugImage->resize(image->width(),image->height(),lms::imaging::Format::BGRA);
-        debugImage->fill(0);
-        lms::imaging::BGRAImageGraphics graphics(*debugImage);
-        graphics.setColor(lms::imaging::blue);
-        graphics.drawRect(rect.x,rect.y,rect.width,rect.height);
-    }
-    logger.debug("oldPoints")<<oldImagePoints.size();
-    //track the old feature points
-    featureTracking(oldImFull,newIm,oldImagePoints,newImagePoints, status); //track those features to the new image
-    checkNewFeaturePoints(rect);
-    if((int)newImagePoints.size() <minFeatureCount){
-        logger.warn("not enough points tracked!")<<newImagePoints.size();
-        if(!alreadySearched){
+        //clear tmp objects
+        newImagePoints.clear();
+        status.clear();
+        //get region of interest
+        int xmin = 0;
+        int xmax = image->width();
+        int ymin = 0;
+        int ymax = image->height();
+        if(config().hasKey("xmin")){
+            xmin = config().get<int>("xmin");
+            xmax = config().get<int>("xmax");
+            ymin = config().get<int>("ymin");
+            ymax = config().get<int>("ymax");
+        }
+        cv::Rect rect(xmin,ymin,xmax-xmin,ymax-ymin);
+
+        cv::Mat oldImFull = oldImage.convertToOpenCVMat();
+        int minFeatureCount = config().get<int>("minFeatureCount",1);
+        bool alreadySearched = false;
+        if((int)oldImagePoints.size() <minFeatureCount){
+            alreadySearched = true;
+            /*
+            oldImagePoints.clear();
+            featureDetection(oldIm, oldImagePoints,fastThreshold); //detect points
+            //TODO transform found points coord-sys of the full image
+            */
             detectFeaturePointsInOldImage(rect,fastThreshold);
-        }else{
-            logger.warn("already searched, found not enough points");
-        }
-        logger.debug("detected new features")<<oldImagePoints.size();
-        if(oldImagePoints.size() == 0){
-            logger.error("No features detected!");
-        }else{
-            featureTracking(oldImFull,newIm,oldImagePoints,newImagePoints, status); //track those features to the new image
-            checkNewFeaturePoints(rect);
-            logger.debug("tracking new features")<<newImagePoints.size();
-            if(newImagePoints.size() <= 1){
-                logger.error("Not enough features could be tracked!")<<newImagePoints.size();
+            if(oldImagePoints.size() == 0){
+                oldImage = *image;
+                logger.error("No features detected!");
+                return false;
             }
         }
-    }
-    if(newImagePoints.size() > 1){
+        //no need to clip the image as the oldPoints are in the frame of the full image!
+        cv::Mat newIm = image->convertToOpenCVMat();
         if(drawDebug){
+            debugImage->resize(image->width(),image->height(),lms::imaging::Format::BGRA);
+            debugImage->fill(0);
             lms::imaging::BGRAImageGraphics graphics(*debugImage);
             graphics.setColor(lms::imaging::blue);
             graphics.drawRect(rect.x,rect.y,rect.width,rect.height);
-            graphics.setColor(lms::imaging::red);
-            for(cv::Point2f p:newImagePoints){
-                graphics.drawCross(p.x,p.y);
+        }
+        logger.debug("oldPoints")<<oldImagePoints.size();
+        //track the old feature points
+        featureTracking(oldImFull,newIm,oldImagePoints,newImagePoints, status); //track those features to the new image
+        checkNewFeaturePoints(rect);
+        if((int)newImagePoints.size() <minFeatureCount){
+            logger.warn("not enough points tracked!")<<newImagePoints.size();
+            if(!alreadySearched){
+                detectFeaturePointsInOldImage(rect,fastThreshold);
+            }else{
+                logger.warn("already searched, found not enough points");
+            }
+            logger.debug("detected new features")<<oldImagePoints.size();
+            if(oldImagePoints.size() == 0){
+                logger.error("No features detected!");
+            }else{
+                featureTracking(oldImFull,newIm,oldImagePoints,newImagePoints, status); //track those features to the new image
+                checkNewFeaturePoints(rect);
+                logger.debug("tracking new features")<<newImagePoints.size();
+                if(newImagePoints.size() <= 1){
+                    logger.error("Not enough features could be tracked!")<<newImagePoints.size();
+                }
             }
         }
-
-        //transform points to 2D-Coordinates
-        std::vector<cv::Point2f> world_old,world_new;
-        cv::perspectiveTransform(oldImagePoints,world_old,cam2world);
-        cv::perspectiveTransform(newImagePoints,world_new,cam2world);
-
-        //######################################################
-        //from http://math.stackexchange.com/questions/77462/finding-transformation-matrix-between-two-2d-coordinate-frames-pixel-plane-to-w
-        //create data
-        cv::Mat leftSide,rightSide;
-        rightSide.create(2*world_old.size(),1, CV_64F);
-        leftSide.create(2*world_old.size(),4,CV_64F);
-        for(std::size_t i = 0; i < 2*world_old.size(); i+=2){
-            //we have the new points and would like to know how to get to the old ones as they moved closer to us
-            leftSide.at<double>(i,0) = world_new[i/2].x;
-            leftSide.at<double>(i,1) = -world_new[i/2].y;
-            leftSide.at<double>(i,2) = 1;
-            leftSide.at<double>(i,3) = 0;
-            leftSide.at<double>(i+1,0) = world_new[i/2].y;
-            leftSide.at<double>(i+1,1) = world_new[i/2].x;
-            leftSide.at<double>(i+1,2) = 0;
-            leftSide.at<double>(i+1,3) = 1;
-            rightSide.at<double>(i,0) = world_old[i/2].x;
-            rightSide.at<double>(i+1,0) = world_old[i/2].y;
-        }
-        //solve it
-        cv::Mat res;
-        cv::solve(leftSide,rightSide,res,cv::DECOMP_SVD); //TODO we could use pseudo-inverse
-        float dx = res.at<double>(2);
-        float dy = res.at<double>(3);
-        float angle = std::atan2(res.at<double>(1),res.at<double>(0));
-
-        if(validateMeasurement(dx/dt,dy/dt,angle/dt)){
-            //update the ukf
-            logger.debug("updating ukf")<<dx/dt<<" "<<dy/dt<<" "<<angle/dt;
-
-            ukf.setMeasurementVec(dx/dt,dy/dt,angle/dt);
-            ukf.update();
-
-            lms::imaging::BGRAImageGraphics traGraphics(*trajectoryImage);
+        if(newImagePoints.size() > 1){
             if(drawDebug){
-                transRotNew.at<double>(0,0) = std::cos(angle);
-                transRotNew.at<double>(0,1) = -std::sin(angle);
-                transRotNew.at<double>(1,0) = std::sin(angle);
-                transRotNew.at<double>(1,1) = std::cos(angle);
-                transRotNew.at<double>(0,2) = dx;
-                transRotNew.at<double>(1,2) = dy;
-                transRotNew.at<double>(2,0) = 0;
-                transRotNew.at<double>(2,1) = 0;
-                transRotNew.at<double>(2,2) = 1;
-                //translate the current position
-                transRotOld = transRotOld*transRotNew;
-                //currentPosition = transRotNew*currentPosition;
-                cv::Mat newPos = transRotOld*currentPosition;
-                traGraphics.setColor(lms::imaging::red);
-                traGraphics.drawPixel(newPos.at<double>(0)*512/30+256,-newPos.at<double>(1)*512/30+256);
+                lms::imaging::BGRAImageGraphics graphics(*debugImage);
+                graphics.setColor(lms::imaging::blue);
+                graphics.drawRect(rect.x,rect.y,rect.width,rect.height);
+                graphics.setColor(lms::imaging::red);
+                for(cv::Point2f p:newImagePoints){
+                    graphics.drawCross(p.x,p.y);
+                }
+            }
+
+            //transform points to 2D-Coordinates
+            std::vector<cv::Point2f> world_old,world_new;
+            cv::perspectiveTransform(oldImagePoints,world_old,cam2world);
+            cv::perspectiveTransform(newImagePoints,world_new,cam2world);
+
+            //######################################################
+            //from http://math.stackexchange.com/questions/77462/finding-transformation-matrix-between-two-2d-coordinate-frames-pixel-plane-to-w
+            //create data
+            cv::Mat leftSide,rightSide;
+            rightSide.create(2*world_old.size(),1, CV_64F);
+            leftSide.create(2*world_old.size(),4,CV_64F);
+            for(std::size_t i = 0; i < 2*world_old.size(); i+=2){
+                //we have the new points and would like to know how to get to the old ones as they moved closer to us
+                leftSide.at<double>(i,0) = world_new[i/2].x;
+                leftSide.at<double>(i,1) = -world_new[i/2].y;
+                leftSide.at<double>(i,2) = 1;
+                leftSide.at<double>(i,3) = 0;
+                leftSide.at<double>(i+1,0) = world_new[i/2].y;
+                leftSide.at<double>(i+1,1) = world_new[i/2].x;
+                leftSide.at<double>(i+1,2) = 0;
+                leftSide.at<double>(i+1,3) = 1;
+                rightSide.at<double>(i,0) = world_old[i/2].x;
+                rightSide.at<double>(i+1,0) = world_old[i/2].y;
+            }
+            //solve it
+            cv::Mat res;
+            cv::solve(leftSide,rightSide,res,cv::DECOMP_SVD); //TODO we could use pseudo-inverse
+            float dx = res.at<double>(2);
+            float dy = res.at<double>(3);
+            float angle = std::atan2(res.at<double>(1),res.at<double>(0));
+
+            if(validateMeasurement(dx/dt,dy/dt,angle/dt)){
+                //update the ukf
+                logger.debug("updating ukf")<<dx/dt<<" "<<dy/dt<<" "<<angle/dt;
+
+                ukf.setMeasurementVec(dx/dt,dy/dt,angle/dt);
+                ukf.update();
+
+                lms::imaging::BGRAImageGraphics traGraphics(*trajectoryImage);
+                if(drawDebug){
+                    transRotNew.at<double>(0,0) = std::cos(angle);
+                    transRotNew.at<double>(0,1) = -std::sin(angle);
+                    transRotNew.at<double>(1,0) = std::sin(angle);
+                    transRotNew.at<double>(1,1) = std::cos(angle);
+                    transRotNew.at<double>(0,2) = dx;
+                    transRotNew.at<double>(1,2) = dy;
+                    transRotNew.at<double>(2,0) = 0;
+                    transRotNew.at<double>(2,1) = 0;
+                    transRotNew.at<double>(2,2) = 1;
+                    //translate the current position
+                    transRotOld = transRotOld*transRotNew;
+                    //currentPosition = transRotNew*currentPosition;
+                    cv::Mat newPos = transRotOld*currentPosition;
+                    traGraphics.setColor(lms::imaging::red);
+                    traGraphics.drawPixel(newPos.at<double>(0)*512/30+256,-newPos.at<double>(1)*512/30+256);
+                }
+            }else{
+                logger.warn("not updating ukf, invalid values")<<dx/dt<<" "<<dy/dt<<" "<<angle/dt;
             }
         }else{
-            logger.warn("not updating ukf, invalid values")<<dx/dt<<" "<<dy/dt<<" "<<angle/dt;
+            //we lost track, no update for the ukf
         }
-    }else{
-        //we lost track, no update for the ukf
-    }
-    //add new pose
-    poseHistory->addPose(ukf.lastState.x(),ukf.lastState.y(),ukf.lastState.phi(),lms::Time::now().toFloat<std::milli, double>());
-    //set old values
-    oldImage = *image;
-    oldImagePoints = newImagePoints;
-    if(drawDebug){
-        lms::imaging::BGRAImageGraphics traGraphics(*trajectoryImage);
-        traGraphics.setColor(lms::imaging::blue);
-        traGraphics.drawPixel(poseHistory->currentPose().x*512/30+256,-poseHistory->currentPose().y*512/30+256);
-        //cv::namedWindow( "Camera", WINDOW_AUTOSIZE );
-        cv::namedWindow( "Display window", cv::WINDOW_AUTOSIZE );// Create a window for display.
-        cv::imshow( "Display window", trajectoryImage->convertToOpenCVMat() );                   // Show our image inside it.
+        //add new pose
+        poseHistory->addPose(ukf.lastState.x(),ukf.lastState.y(),ukf.lastState.phi(),lms::Time::now().toFloat<std::milli, double>());
+        //set old values
+        oldImage = *image;
+        oldImagePoints = newImagePoints;
+        if(drawDebug){
+            lms::imaging::BGRAImageGraphics traGraphics(*trajectoryImage);
+            traGraphics.setColor(lms::imaging::blue);
+            traGraphics.drawPixel(poseHistory->currentPose().x*512/30+256,-poseHistory->currentPose().y*512/30+256);
+            //cv::namedWindow( "Camera", WINDOW_AUTOSIZE );
+            cv::namedWindow( "Display window", cv::WINDOW_AUTOSIZE );// Create a window for display.
+            cv::imshow( "Display window", trajectoryImage->convertToOpenCVMat() );                   // Show our image inside it.
 
-        cv::waitKey(1);
+            cv::waitKey(1);
+        }
+    }catch(std::exception &e){
+        logger.error("exception thrown")<<e.what()<<" reinitialising ukf";
+        ukf.init(ukf.lastState.x(),ukf.lastState.y(),ukf.lastState.phi());
     }
+
     return true;
 }
 
