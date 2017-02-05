@@ -45,6 +45,7 @@ THE SOFTWARE.
 
 using namespace cv;
 using namespace std;
+namespace vo_features{
 /**
  * @brief featureTracking this function automatically gets rid of points for which tracking fails
  * @param img_1
@@ -86,5 +87,6 @@ void featureDetection(Mat img_1, vector<Point2f>& points1,int fast_threshold){
   bool nonmaxSuppression = true;
   FAST(img_1, keypoints_1, fast_threshold, nonmaxSuppression);
   KeyPoint::convert(keypoints_1, points1, vector<int>());
+}
 }
 

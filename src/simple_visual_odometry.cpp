@@ -63,7 +63,6 @@ bool SimpleVisualOdometry::cycle() {
         }
         cv::Rect rect(xmin,ymin,xmax-xmin,ymax-ymin);
 
-        cv::Mat oldImFull = oldImage.convertToOpenCVMat();
         int minFeatureCount = config().get<int>("minFeatureCount",1);
         bool alreadySearched = false;
         if((int)oldImagePoints.size() <minFeatureCount){
@@ -81,7 +80,6 @@ bool SimpleVisualOdometry::cycle() {
             }
         }
         //no need to clip the image as the oldPoints are in the frame of the full image!
-        cv::Mat newIm = image->convertToOpenCVMat();
         if(drawDebug){
             debugImage->resize(image->width(),image->height(),lms::imaging::Format::BGRA);
             debugImage->fill(0);
@@ -91,8 +89,9 @@ bool SimpleVisualOdometry::cycle() {
         }
         logger.debug("oldPoints")<<oldImagePoints.size();
         //track the old feature points
-        featureTracking(oldImFull,newIm,oldImagePoints,newImagePoints, status); //track those features to the new image
-        checkNewFeaturePoints(rect);
+        featureTracking(rect);
+        //TODO featureTracking(oldImFull,newIm,oldImagePoints,newImagePoints, status); //track those features to the new image
+        //checkNewFeaturePoints(rect);
         if((int)newImagePoints.size() <minFeatureCount){
             logger.warn("not enough points tracked!")<<newImagePoints.size();
             if(!alreadySearched){
@@ -104,8 +103,9 @@ bool SimpleVisualOdometry::cycle() {
             if(oldImagePoints.size() == 0){
                 logger.error("No features detected!");
             }else{
-                featureTracking(oldImFull,newIm,oldImagePoints,newImagePoints, status); //track those features to the new image
-                checkNewFeaturePoints(rect);
+                featureTracking(rect);
+                //TODO featureTracking(oldImFull,newIm,oldImagePoints,newImagePoints, status); //track those features to the new image
+                //checkNewFeaturePoints(rect);
                 logger.debug("tracking new features")<<newImagePoints.size();
                 if(newImagePoints.size() <= 1){
                     logger.error("Not enough features could be tracked!")<<newImagePoints.size();
@@ -160,7 +160,7 @@ bool SimpleVisualOdometry::cycle() {
 
                 ukf.setMeasurementVec(dx/dt,dy/dt,angle/dt);
                 ukf.update();
-
+                /*
                 lms::imaging::BGRAImageGraphics traGraphics(*trajectoryImage);
                 if(drawDebug){
                     transRotNew.at<double>(0,0) = std::cos(angle);
@@ -179,6 +179,7 @@ bool SimpleVisualOdometry::cycle() {
                     traGraphics.setColor(lms::imaging::red);
                     traGraphics.drawPixel(newPos.at<double>(0)*512/30+256,-newPos.at<double>(1)*512/30+256);
                 }
+                */
             }else{
                 logger.warn("not updating ukf, invalid values")<<dx/dt<<" "<<dy/dt<<" "<<angle/dt;
             }
@@ -229,7 +230,7 @@ void SimpleVisualOdometry::detectFeaturePointsInOldImage(cv::Rect rect, const in
     oldImagePoints.clear();
     status.clear();
     cv::Mat oldImClipped = oldImage.convertToOpenCVMat()(rect);
-    featureDetection(oldImClipped, oldImagePoints,fastThreshold); //detect points
+    vo_features::featureDetection(oldImClipped, oldImagePoints,fastThreshold); //detect points
     for(cv::Point2f &v:oldImagePoints){
         v.x += rect.x;
         v.y += rect.y;
@@ -248,9 +249,28 @@ void SimpleVisualOdometry::checkNewFeaturePoints(const cv::Rect rect){
         }else{
             newImagePoints.erase(newImagePoints.begin()+i);
             oldImagePoints.erase(oldImagePoints.begin()+i);
-
         }
     }
+}
+
+void SimpleVisualOdometry::featureTracking(cv::Rect rect){
+    newImagePoints.clear();
+    cv::Mat oldImFull = oldImage.convertToOpenCVMat();
+    cv::Mat newIm = image->convertToOpenCVMat();
+    for(cv::Point2f &v:oldImagePoints){
+        v.x -= rect.x;
+        v.y -= rect.y;
+    }
+    vo_features::featureTracking(oldImFull(rect),newIm(rect),oldImagePoints,newImagePoints, status); //track those features to the new image
+    for(cv::Point2f &v:newImagePoints){
+        v.x += rect.x;
+        v.y += rect.y;
+    }
+    for(cv::Point2f &v:oldImagePoints){
+        v.x += rect.x;
+        v.y += rect.y;
+    }
+    checkNewFeaturePoints(rect);
 }
 
 
