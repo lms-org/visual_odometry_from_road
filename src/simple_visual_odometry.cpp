@@ -149,39 +149,43 @@ bool SimpleVisualOdometry::cycle() {
             }
             //solve it
             cv::Mat res;
-            cv::solve(leftSide,rightSide,res,cv::DECOMP_SVD); //TODO we could use pseudo-inverse
-            float dx = res.at<double>(2);
-            float dy = res.at<double>(3);
-            float angle = std::atan2(res.at<double>(1),res.at<double>(0));
+            //TODO we could use pseudo-inverse
+            if(cv::solve(leftSide,rightSide,res,cv::DECOMP_SVD)){
+                float dx = res.at<double>(2);
+                float dy = res.at<double>(3);
+                float angle = std::atan2(res.at<double>(1),res.at<double>(0));
 
-            if(validateMeasurement(dx/dt,dy/dt,angle/dt)){
-                //update the ukf
-                logger.debug("updating ukf")<<dx/dt<<" "<<dy/dt<<" "<<angle/dt;
+                if(validateMeasurement(dx/dt,dy/dt,angle/dt)){
+                    //update the ukf
+                    logger.debug("updating ukf")<<dx/dt<<" "<<dy/dt<<" "<<angle/dt;
 
-                ukf.setMeasurementVec(dx/dt,dy/dt,angle/dt);
-                ukf.update();
-                /*
-                lms::imaging::BGRAImageGraphics traGraphics(*trajectoryImage);
-                if(drawDebug){
-                    transRotNew.at<double>(0,0) = std::cos(angle);
-                    transRotNew.at<double>(0,1) = -std::sin(angle);
-                    transRotNew.at<double>(1,0) = std::sin(angle);
-                    transRotNew.at<double>(1,1) = std::cos(angle);
-                    transRotNew.at<double>(0,2) = dx;
-                    transRotNew.at<double>(1,2) = dy;
-                    transRotNew.at<double>(2,0) = 0;
-                    transRotNew.at<double>(2,1) = 0;
-                    transRotNew.at<double>(2,2) = 1;
-                    //translate the current position
-                    transRotOld = transRotOld*transRotNew;
-                    //currentPosition = transRotNew*currentPosition;
-                    cv::Mat newPos = transRotOld*currentPosition;
-                    traGraphics.setColor(lms::imaging::red);
-                    traGraphics.drawPixel(newPos.at<double>(0)*512/30+256,-newPos.at<double>(1)*512/30+256);
+                    ukf.setMeasurementVec(dx/dt,dy/dt,angle/dt);
+                    ukf.update();
+                    /*
+                    lms::imaging::BGRAImageGraphics traGraphics(*trajectoryImage);
+                    if(drawDebug){
+                        transRotNew.at<double>(0,0) = std::cos(angle);
+                        transRotNew.at<double>(0,1) = -std::sin(angle);
+                        transRotNew.at<double>(1,0) = std::sin(angle);
+                        transRotNew.at<double>(1,1) = std::cos(angle);
+                        transRotNew.at<double>(0,2) = dx;
+                        transRotNew.at<double>(1,2) = dy;
+                        transRotNew.at<double>(2,0) = 0;
+                        transRotNew.at<double>(2,1) = 0;
+                        transRotNew.at<double>(2,2) = 1;
+                        //translate the current position
+                        transRotOld = transRotOld*transRotNew;
+                        //currentPosition = transRotNew*currentPosition;
+                        cv::Mat newPos = transRotOld*currentPosition;
+                        traGraphics.setColor(lms::imaging::red);
+                        traGraphics.drawPixel(newPos.at<double>(0)*512/30+256,-newPos.at<double>(1)*512/30+256);
+                    }
+                    */
+                }else{
+                    logger.warn("not updating ukf, invalid values")<<dx/dt<<" "<<dy/dt<<" "<<angle/dt;
                 }
-                */
             }else{
-                logger.warn("not updating ukf, invalid values")<<dx/dt<<" "<<dy/dt<<" "<<angle/dt;
+                logger.error("solving SVD failed!");
             }
         }else{
             //we lost track, no update for the ukf
@@ -275,6 +279,10 @@ void SimpleVisualOdometry::featureTracking(cv::Rect rect){
 
 
 bool SimpleVisualOdometry::validateMeasurement(const float vx, const float vy, const float dPhi){
+    if(std::isnan(vx)|| std::isnan(vy) || std::isnan(dPhi)){
+        logger.error("validateMeasurement")<<"vx or vy or dPhi is nan";
+        return false;
+    }
     float vxMax = config().get<float>("vxMax",5);
     float vyMax = config().get<float>("vyMax",5);
     float vxMin = config().get<float>("vxMin",-0.1);
