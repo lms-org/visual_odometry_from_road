@@ -75,7 +75,7 @@ bool SimpleVisualOdometry::cycle() {
             detectFeaturePointsInOldImage(rect,fastThreshold);
             if(oldImagePoints.size() == 0){
                 oldImage = *image;
-                logger.error("No features detected!");
+                logger.warn("No features detected!");
                 return false;
             }
         }
@@ -101,14 +101,14 @@ bool SimpleVisualOdometry::cycle() {
             }
             logger.debug("detected new features")<<oldImagePoints.size();
             if(oldImagePoints.size() == 0){
-                logger.error("No features detected!");
+                logger.warn("No features detected!");
             }else{
                 featureTracking(rect);
                 //TODO featureTracking(oldImFull,newIm,oldImagePoints,newImagePoints, status); //track those features to the new image
                 //checkNewFeaturePoints(rect);
                 logger.debug("tracking new features")<<newImagePoints.size();
                 if(newImagePoints.size() <= 1){
-                    logger.error("Not enough features could be tracked!")<<newImagePoints.size();
+                    logger.debug("Not enough features could be tracked!")<<newImagePoints.size();
                 }
             }
         }
